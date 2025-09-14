@@ -567,48 +567,59 @@ namespace API.DrippyDevelopment.IMGUI
         }
 
         private void DrawResizeHandle()
-        {
-            float handleSize = 16f;
-            Rect handleRect = new Rect(WindowRect.width - handleSize, WindowRect.height - handleSize, handleSize, handleSize);
+{
+    float handleSize = 16f;
+    Rect handleRect = new Rect(WindowRect.width - handleSize, WindowRect.height - handleSize, handleSize, handleSize);
 
-            // Draw triangular resize handle
-            GUI.DrawTexture(handleRect, IMGUIStyle.CreateColorTexture(IMGUIStyle.AccentColor));
+    Event e = Event.current;
 
-            // Handle resize logic
-            Event e = Event.current;
-            if (e.type == EventType.MouseDown && handleRect.Contains(e.mousePosition))
-            {
-                isResizing = true;
-                resizeStartPos = e.mousePosition;
-                resizeStartSize = new Vector2(WindowRect.width, WindowRect.height);
-                e.Use();
-            }
-            else if (e.type == EventType.MouseDrag && isResizing)
-            {
-                Vector2 deltaSize = e.mousePosition - resizeStartPos;
-                WindowRect = new Rect(WindowRect.x, WindowRect.y,
-                    Mathf.Max(200, resizeStartSize.x + deltaSize.x),
-                    Mathf.Max(150, resizeStartSize.y + deltaSize.y));
-                e.Use();
-            }
-            else if (e.type == EventType.MouseUp && isResizing)
-            {
-                isResizing = false;
-                e.Use();
-            }
+    // Draw triangular resize handle (facing northwest)
+    Vector2 p1 = new Vector2(handleRect.xMax, handleRect.yMax); // bottom-right
+    Vector2 p2 = new Vector2(handleRect.xMin, handleRect.yMax); // bottom-left
+    Vector2 p3 = new Vector2(handleRect.xMax, handleRect.yMin); // top-right
 
-            // Visual feedback for resize handle hover
-            if (handleRect.Contains(e.mousePosition))
-            {
-                Color hoverColor = new Color(
-                    IMGUIStyle.AccentColor.r * 1.2f,
-                    IMGUIStyle.AccentColor.g * 1.2f,
-                    IMGUIStyle.AccentColor.b * 1.2f
-                );
-                GUI.DrawTexture(handleRect, IMGUIStyle.CreateColorTexture(hoverColor));
-            }
-        }
+    Handles.BeginGUI();
+    Handles.color = IMGUIStyle.AccentColor;
+    Handles.DrawAAConvexPolygon(p1, p2, p3);
+    Handles.EndGUI();
+
+    // --- Resize logic ---
+    if (e.type == EventType.MouseDown && handleRect.Contains(e.mousePosition))
+    {
+        isResizing = true;
+        resizeStartPos = e.mousePosition;
+        resizeStartSize = new Vector2(WindowRect.width, WindowRect.height);
+        e.Use();
     }
+    else if (e.type == EventType.MouseDrag && isResizing)
+    {
+        Vector2 deltaSize = e.mousePosition - resizeStartPos;
+        WindowRect = new Rect(WindowRect.x, WindowRect.y,
+            Mathf.Max(200, resizeStartSize.x + deltaSize.x),
+            Mathf.Max(150, resizeStartSize.y + deltaSize.y));
+        e.Use();
+    }
+    else if (e.type == EventType.MouseUp && isResizing)
+    {
+        isResizing = false;
+        e.Use();
+    }
+
+    // --- Hover effect ---
+    if (handleRect.Contains(e.mousePosition))
+    {
+        Color hoverColor = new Color(
+            IMGUIStyle.AccentColor.r * 1.2f,
+            IMGUIStyle.AccentColor.g * 1.2f,
+            IMGUIStyle.AccentColor.b * 1.2f
+        );
+
+        Handles.BeginGUI();
+        Handles.color = hoverColor;
+        Handles.DrawAAConvexPolygon(p1, p2, p3);
+        Handles.EndGUI();
+    }
+}
    
     // Window manager
     [KSPAddon(KSPAddon.Startup.Flight | KSPAddon.Startup.SpaceCentre, false)]
@@ -675,4 +686,5 @@ namespace API.DrippyDevelopment.IMGUI
             return null;
         }
     }
+
 }
