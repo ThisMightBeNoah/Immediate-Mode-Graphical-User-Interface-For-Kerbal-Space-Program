@@ -1,4 +1,4 @@
-﻿
+
 using KSP.UI.Screens.DebugToolbar.Screens.Cheats;
 using System;
 using System.Collections.Generic;
@@ -201,7 +201,7 @@ namespace API.DrippyDevelopment.IMGUI
                     _errorColor.fontSize = 14;
                     _errorColor.padding = new RectOffset(0, 4, 0, 0);
                     _errorColor.alignment = TextAnchor.MiddleCenter;
-                    
+
                 }
                 return _errorColor;
             }
@@ -533,7 +533,7 @@ namespace API.DrippyDevelopment.IMGUI
                 DrawResizeHandle();
             }
             Rect closeButtonRect = new Rect(WindowRect.width - 24, 2, 20, 16);
-            
+
             if (GUI.Button(closeButtonRect, "×", IMGUIStyle.closeButtonStyle))
             {
                 OnCloseButton?.Invoke();
@@ -566,125 +566,147 @@ namespace API.DrippyDevelopment.IMGUI
             }
         }
 
-        private void DrawResizeHandle()
-{
-    float handleSize = 16f;
-    Rect handleRect = new Rect(WindowRect.width - handleSize, WindowRect.height - handleSize, handleSize, handleSize);
+        private Texture2D triangleTex;
 
-    Event e = Event.current;
-
-    // Draw triangular resize handle (facing northwest)
-    Vector2 p1 = new Vector2(handleRect.xMax, handleRect.yMax); // bottom-right
-    Vector2 p2 = new Vector2(handleRect.xMin, handleRect.yMax); // bottom-left
-    Vector2 p3 = new Vector2(handleRect.xMax, handleRect.yMin); // top-right
-
-    Handles.BeginGUI();
-    Handles.color = IMGUIStyle.AccentColor;
-    Handles.DrawAAConvexPolygon(p1, p2, p3);
-    Handles.EndGUI();
-
-    // --- Resize logic ---
-    if (e.type == EventType.MouseDown && handleRect.Contains(e.mousePosition))
-    {
-        isResizing = true;
-        resizeStartPos = e.mousePosition;
-        resizeStartSize = new Vector2(WindowRect.width, WindowRect.height);
-        e.Use();
-    }
-    else if (e.type == EventType.MouseDrag && isResizing)
-    {
-        Vector2 deltaSize = e.mousePosition - resizeStartPos;
-        WindowRect = new Rect(WindowRect.x, WindowRect.y,
-            Mathf.Max(200, resizeStartSize.x + deltaSize.x),
-            Mathf.Max(150, resizeStartSize.y + deltaSize.y));
-        e.Use();
-    }
-    else if (e.type == EventType.MouseUp && isResizing)
-    {
-        isResizing = false;
-        e.Use();
-    }
-
-    // --- Hover effect ---
-    if (handleRect.Contains(e.mousePosition))
-    {
-        Color hoverColor = new Color(
-            IMGUIStyle.AccentColor.r * 1.2f,
-            IMGUIStyle.AccentColor.g * 1.2f,
-            IMGUIStyle.AccentColor.b * 1.2f
-        );
-
-        Handles.BeginGUI();
-        Handles.color = hoverColor;
-        Handles.DrawAAConvexPolygon(p1, p2, p3);
-        Handles.EndGUI();
-    }
-}
-   
-    // Window manager
-    [KSPAddon(KSPAddon.Startup.Flight | KSPAddon.Startup.SpaceCentre, false)]
-    public class IMGUIWindowManager : MonoBehaviour
-    {
-        private List<IMGUIWindow> windows = new List<IMGUIWindow>();
-        private bool uiVisible = true;
-        private KeyCode toggleKey = KeyCode.F2;
-
-        void Awake()
+        private Texture2D CreateTriangleTexture(int size, Color col)
         {
-            Debug.Log("[IMGUI4KSP] Initializing...");
-            LoadConfig();
+            Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            tex.filterMode = FilterMode.Point;
 
+            Color[] pixels = new Color[size * size];
+
+            // Fill pixels: northwest-facing right triangle
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    if (x + y >= size) // keep only bottom-left half
+                        pixels[y * size + x] = col;
+                    else
+                        pixels[y * size + x] = Color.clear;
+                }
+            }
+
+            tex.SetPixels(pixels);
+            tex.Apply();
+            return tex;
         }
 
-        public void LoadConfig()
+        private void DrawResizeHandle()
         {
-            foreach (var node in GameDatabase.Instance.GetConfigNodes("IMGUI4KSP/config"))
+            float handleSize = 16f;
+            Rect handleRect = new Rect(WindowRect.width - handleSize, WindowRect.height - handleSize, handleSize, handleSize);
+
+            Event e = Event.current;
+
+            if (triangleTex == null)
+                triangleTex = CreateTriangleTexture((int)handleSize, IMGUIStyle.AccentColor);
+
+            // draw
+            GUI.DrawTexture(handleRect, triangleTex);
+
+            // --- resize logic ---
+            if (e.type == EventType.MouseDown && handleRect.Contains(e.mousePosition))
             {
-                if (node.HasValue("toggleKey"))
+                isResizing = true;
+                resizeStartPos = e.mousePosition;
+                resizeStartSize = new Vector2(WindowRect.width, WindowRect.height);
+                e.Use();
+            }
+            else if (e.type == EventType.MouseDrag && isResizing)
+            {
+                Vector2 deltaSize = e.mousePosition - resizeStartPos;
+                WindowRect = new Rect(WindowRect.x, WindowRect.y,
+                    Mathf.Max(200, resizeStartSize.x + deltaSize.x),
+                    Mathf.Max(150, resizeStartSize.y + deltaSize.y));
+                e.Use();
+            }
+            else if (e.type == EventType.MouseUp && isResizing)
+            {
+                isResizing = false;
+                e.Use();
+            }
+
+            // --- hover effect ---
+            if (handleRect.Contains(e.mousePosition))
+            {
+                Texture2D hoverTex = CreateTriangleTexture((int)handleSize, new Color(
+                    IMGUIStyle.AccentColor.r * 1.2f,
+                    IMGUIStyle.AccentColor.g * 1.2f,
+                    IMGUIStyle.AccentColor.b * 1.2f
+                ));
+
+                GUI.DrawTexture(handleRect, hoverTex);
+            }
+        }
+
+
+        // Window manager
+        [KSPAddon(KSPAddon.Startup.Flight | KSPAddon.Startup.SpaceCentre, false)]
+        public class IMGUIWindowManager : MonoBehaviour
+        {
+            private List<IMGUIWindow> windows = new List<IMGUIWindow>();
+            private bool uiVisible = true;
+            private KeyCode toggleKey = KeyCode.F2;
+
+            void Awake()
+            {
+                Debug.Log("[IMGUI4KSP] Initializing...");
+                LoadConfig();
+
+            }
+
+            public void LoadConfig()
+            {
+                foreach (var node in GameDatabase.Instance.GetConfigNodes("IMGUI4KSP/config"))
                 {
-                    if (Enum.TryParse(node.GetValue("toggleKey"), true, out KeyCode key))
+                    if (node.HasValue("toggleKey"))
                     {
-                        toggleKey = key;
-                        Debug.Log($"[IMGUI4KSP] Using toggle key: {toggleKey}");
+                        if (Enum.TryParse(node.GetValue("toggleKey"), true, out KeyCode key))
+                        {
+                            toggleKey = key;
+                            Debug.Log($"[IMGUI4KSP] Using toggle key: {toggleKey}");
+                        }
                     }
                 }
             }
-        }
 
-        void Update()
-        {
-            if (Input.GetKeyDown(toggleKey))
+            void Update()
             {
-                uiVisible = !uiVisible;
-                Debug.Log($"[IMGUI4KSP] UI toggled: {uiVisible}");
+                if (Input.GetKeyDown(toggleKey))
+                {
+                    uiVisible = !uiVisible;
+                    Debug.Log($"[IMGUI4KSP] UI toggled: {uiVisible}");
+                }
+            }
+
+            void OnGUI()
+            {
+                if (!uiVisible) return;
+                foreach (var window in windows)
+                {
+                    window.OnGUI();
+                }
+            }
+
+            public IMGUIWindow CreateWindow(string title, Vector2 position, Vector2 size)
+            {
+                var window = new IMGUIWindow(title, new Rect(position.x, position.y, size.x, size.y));
+                windows.Add(window);
+                return window;
+            }
+            public IMGUIWindow DestroyWindow(IMGUIWindow window)
+            {
+                if (window != null && windows.Contains(window))
+                {
+                    windows.Remove(window);
+                    // Additional cleanup if needed
+
+                }
+                return null;
             }
         }
 
-        void OnGUI()
-        {
-            if (!uiVisible) return;
-            foreach (var window in windows)
-            {
-                window.OnGUI();
-            }
-        }
-
-        public IMGUIWindow CreateWindow(string title, Vector2 position, Vector2 size)
-        {
-            var window = new IMGUIWindow(title, new Rect(position.x, position.y, size.x, size.y));
-            windows.Add(window);
-            return window;
-        }
-        public IMGUIWindow DestroyWindow(IMGUIWindow window)
-        {
-            if (window != null && windows.Contains(window))
-            {
-                windows.Remove(window);
-                // Additional cleanup if needed
-                
-            }
-            return null;
-        }
     }
 
 }
